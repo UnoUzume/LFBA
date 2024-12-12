@@ -39,7 +39,7 @@ Hyperparameter explanations:
 
 **--attack:** The attack methods.
 
-**--anchor_idx:** The index of anchor sample.
+**--anchor_idx:** The index of anchor.
 
 **--poison_rate:** The poison ratio ($p=\frac{N_p}{N}$ in the paper).
 
