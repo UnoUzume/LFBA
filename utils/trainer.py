@@ -2,7 +2,7 @@ import copy
 from random import sample
 
 from dataset.utils import split_vfl
-from attack.attack import attack_con, get_near_index
+from attack.attack import attack_LFBA, get_near_index
 from utils.utils import *
 import time
 
@@ -59,7 +59,7 @@ class Trainer:
             batch_loss_list = []
             total = 0
             correct = 0
-            if ep >= 1 and self.args.attack == 'con':
+            if ep >= 1 and self.args.attack == 'LFBA':
                 self.train_features, self.train_labels, self.train_indexes = self.grad_vec_epoch, self.target_epoch, self.indexes_epoch
                 self.train_features, self.train_labels, self.train_indexes = self.train_features.cpu(), self.train_labels.cpu(), self.train_indexes.cpu()
                 self.num_poisons = int(self.args.poison_rate * len(self.train_loader.dataset.data))
@@ -107,14 +107,14 @@ class Trainer:
                     self.logger.info('Target label:{}'.format(self.anchor_label))
                     self.clean_data_p = copy.deepcopy(self.train_loader.dataset.data_p)
                     if self.args.random_select:
-                        self.train_loader.dataset.data = attack_con(self.args, self.logger, [],
+                        self.train_loader.dataset.data = attack_LFBA(self.args, self.logger, [],
                                                                     [], self.train_indexes,
                                                                     self.poison_indexes_t,
                                                                     self.clean_data_p, self.train_loader.dataset.targets,
                                                                     self.trigger_dimensions,
                                                                     self.args.poison_rate, 'train')
                     else:
-                        self.train_loader.dataset.data = attack_con(self.args, self.logger, [],
+                        self.train_loader.dataset.data = attack_LFBA(self.args, self.logger, [],
                                                                     [], self.train_indexes,
                                                                     self.poison_indexes,
                                                                     self.clean_data_p,
@@ -129,7 +129,7 @@ class Trainer:
                     self.poisoning_labels = np.array(self.train_labels)[self.indexes]
                     self.anchor_label = int(self.train_labels[self.train_indexes == self.args.anchor_idx])
                     self.clean_data_p = copy.deepcopy(self.train_loader.dataset.data_p)
-                    self.train_loader.dataset.data = attack_con(self.args, self.logger, replace_indexes_others,
+                    self.train_loader.dataset.data = attack_LFBA(self.args, self.logger, replace_indexes_others,
                                                                 replace_indexes_target, self.train_indexes,
                                                                 self.poison_indexes,
                                                                 self.clean_data_p,
@@ -177,7 +177,7 @@ class Trainer:
 
                 loss.backward()
 
-                if self.args.attack == 'con':
+                if self.args.attack == 'LFBA':
                     self.grad_vec_epoch.append(local_output_list[self.args.attack_client_num].grad.to(self.device))
                     self.indexes_epoch.append(index)
                     self.target_epoch.append(y)
@@ -202,7 +202,7 @@ class Trainer:
                                                                                                         len(self.train_loader),
                                                                                                         current_loss,
                                                                                                         train_acc))
-            if self.args.attack == 'con':
+            if self.args.attack == 'LFBA':
                 self.grad_vec_epoch = torch.cat(self.grad_vec_epoch)
                 self.indexes_epoch = torch.cat(self.indexes_epoch)
                 self.target_epoch = torch.cat(self.target_epoch)

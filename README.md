@@ -22,7 +22,12 @@ pip install requirements.txt
 
 For instance, to perform backdoor attacks with LFBA on the NUS-WIDE dataset, run:
 ```bash
-python main.py --device 0 --dataset NUSWIDE  --epoch 100 --batch_size 256 --lr 0.001 --attack LFBA --anchor_idx 33930 --poison_rate 0.1 --poison_dimensions 10 --select_replace --select_rate 0.3
+python main.py --device 0 --dataset NUSWIDE --epoch 100 --batch_size 256 --lr 0.001 --attack LFBA --anchor_idx 33930 --poison_rate 0.1 --poison_dimensions 10 --select_replace --select_rate 0.3
+```
+
+For CIFAR-10 dataset:
+```bash
+python main.py --device 0 --dataset CIFAR10 --epoch 100 --batch_size 256 --lr 0.001 --attack LFBA --anchor_idx 23470 --poison_rate 0.1 --select_replace --select_rate 0.5
 ```
 
 Hyperparameter explanations:
@@ -37,7 +42,7 @@ Hyperparameter explanations:
 
 **--lr:** The learning rate.
 
-**--attack:** The attack methods.
+**--attack:** The attack methods. Set 'LFBA' for the proposed method.
 
 **--anchor_idx:** The index of anchor.
 

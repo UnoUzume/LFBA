@@ -24,7 +24,7 @@ def attack_rsa(args, logger, data, trigger_dimensions, rate, mode):
     return new_data
 
 
-def attack_con(args, logger, replace_indexes_others, replace_indexes_target, train_indexes, poison_indexes, data,
+def attack_LFBA(args, logger, replace_indexes_others, replace_indexes_target, train_indexes, poison_indexes, data,
                target, trigger_dimensions, rate,
                mode):
     if args.poison_all:
@@ -38,8 +38,8 @@ def attack_con(args, logger, replace_indexes_others, replace_indexes_target, tra
     return new_data
 
 
-def select_con(train_features, num_poisons):
-    anchor_idx = get_anchor_con(
+def select_LFBA(train_features, num_poisons):
+    anchor_idx = get_anchor_LFBA(
         train_features, num_poisons)
     anchor_feature = train_features[anchor_idx]
 
@@ -50,7 +50,7 @@ def select_con(train_features, num_poisons):
     return poisoning_index, anchor_idx
 
 
-def get_anchor_con(train_features, num_poisons):
+def get_anchor_LFBA(train_features, num_poisons):
     consistency = train_features @ train_features.T
     w = torch.cat((torch.ones((num_poisons)),
                    -torch.ones((num_poisons))), dim=0)

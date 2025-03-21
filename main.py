@@ -189,7 +189,7 @@ def main(args):
                                                          args.poison_rate, 'train')
         test_data_asr.data, _ = attack_lra(args, logger, test_data_asr.data, trigger_dimensions, test_data_asr.targets,
                                            1, 'test')
-    elif args.attack == 'con':
+    elif args.attack == 'LFBA':
         test_data_asr.data = attack_rsa(args, logger, test_data_asr.data, trigger_dimensions, 1, 'test')
     else:
         raise_attack_exception()
