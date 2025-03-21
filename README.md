@@ -59,7 +59,7 @@ Hyperparameter explanations:
 Please cite our work, thank you!
 
 ```
-@article{ye2024vertical,
+@article{ye2025vertical,
   title={Vertical Federated Learning for Effectiveness, Security, Applicability: A Survey},
   author={Ye, Mang and Shen, Wei and Du, Bo and Snezhko, Eduard and Kovalev, Vassili and Yuen, Pong C},
   journal={ACM Computing Surveys},
