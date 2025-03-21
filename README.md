@@ -55,4 +55,27 @@ Hyperparameter explanations:
 **--select_rate:** The switch ratio ($s=\frac{N_s}{N}$ in the paper).
 
 
+## Citation
+Please cite our work, thank you!
 
+```
+@article{ye2024vertical,
+  title={Vertical Federated Learning for Effectiveness, Security, Applicability: A Survey},
+  author={Ye, Mang and Shen, Wei and Du, Bo and Snezhko, Eduard and Kovalev, Vassili and Yuen, Pong C},
+  journal={ACM Computing Surveys},
+  year={2025}
+}
+@article{shen2025limitedvfl,
+  title={Build Yourself Before Collaboration: Vertical Federated Learning with Limited Aligned Samples},
+  author={Shen, Wei and Ye, Mang and Yu, Wei and Yuen, Pong C.},
+  journal={IEEE Transactions on Mobile Computing},
+  year={2025}
+}
+@inproceedings{shen2025label,
+  title={Label-free backdoor attacks in vertical federated learning},
+  author={Shen, Wei and Huang, Wenke and Wan, Guancheng and Ye, Mang},
+  booktitle={The 39th AAAI Conference on Artificial Intelligence},
+  year={2025}
+}
+```
+Contact: [weishen@whu.edu.cn](mailto:weishen@whu.edu.cn)
