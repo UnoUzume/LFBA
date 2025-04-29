@@ -1,0 +1,40 @@
+indent-width = 2
+line-length = 100
+target-version = "py310"
+
+[format]
+docstring-code-format = true
+indent-style = "tab"
+line-ending = "lf"
+quote-style = "single"
+
+[lint]
+allowed-confusables = ["，", "！", "？", "；", "：", "（", "）"]
+select = [
+  "ALL",
+  "N804", # invalid-first-argument-name-for-class-method
+  "N805", # invalid-first-argument-name-for-method
+  "N807", # dunder-function-name
+  "N818", # error-suffix-on-exception-name
+  "N999", # invalid-module-name
+]
+ignore = [
+  "W191",    # Formatter: tab-indentation
+  "COM812",  # Formatter: missing-trailing-comma
+  "ISC001",  # Formatter: single-line-implicit-string-concatenation
+  "Q",       # Formatter: flake8-quotess
+  "D",       # pydocstyle
+  "N",       # pep8-naming
+  "T20",     # flake8-print
+  "ERA",     # commented-out-code
+  "EXE",     # flake8-executable
+  "FBT",     #? flake8-boolean-trap 有用
+  "G004",    # logging-f-string
+  "RET504",  # unnecessary-assign
+  "SIM108",  # if-else-block-instead-of-if-exp
+  "PLR0402", # manual-from-impor
+  "PLR2004", # magic-value-comparison
+]
+
+[lint.isort]
+combine-as-imports = true

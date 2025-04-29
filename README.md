@@ -52,7 +52,7 @@ Hyperparameter explanations:
 
 **--poison_rate:** The poison ratio ($p=\frac{N_p}{N}$ in the paper).
 
-**--poison_dimensions:** The dimension of triggers, e.g., 10 means randomly set 10 dimensions in the attacker client into the fixed value. 
+**--poison_dimensions:** The dimension of triggers, e.g., 10 means randomly set 10 dimensions in the attacker client into the fixed value.
 
 **--select_replace:** Add this params to perform attack with selectively sample switching.
 
