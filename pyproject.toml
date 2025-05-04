@@ -5,7 +5,12 @@ description = "Default template for PDM package"
 authors = [
     { name = "UnoUzume", email = "38970229+UnoUzume@users.noreply.github.com" },
 ]
-dependencies = []
+dependencies = [
+    "numpy>=2.2.5",
+    "pandas>=2.2.3",
+    "scipy>=1.15.2",
+    "scikit-learn>=1.6.1",
+]
 requires-python = "==3.10.*"
 readme = "README.md"
 license = { text = "MIT" }
@@ -13,3 +18,7 @@ license = { text = "MIT" }
 
 [tool.pdm]
 distribution = false
+
+
+[tool.pdm.resolution]
+excludes = ["torch", "torchvision", "torchaudio"]

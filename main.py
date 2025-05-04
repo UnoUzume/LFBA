@@ -2,8 +2,11 @@ import argparse
 import copy
 import logging
 import math
+import os
 from datetime import datetime
 
+import numpy as np
+import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 
@@ -14,8 +17,11 @@ from models.NUSWIDE_models import GlobalModelForNUSWIDE, LocalModelForNUSWIDE
 from models.PHISHING_models import GlobalModelForPHISHING, LocalModelForPHISHING
 from models.UCIHAR_models import GlobalModelForUCIHAR, LocalModelForUCIHAR
 from utils.trainer import Trainer
-from utils.trigger_visualization import trigger_visualization
-from utils.utils import *
+from utils.utils import (
+	raise_attack_exception,
+	raise_dataset_exception,
+	set_seed,
+)
 
 
 def main(args):
@@ -86,10 +92,6 @@ def main(args):
 		test_data_asr = copy.deepcopy(test_data)
 	else:
 		raise_dataset_exception()
-
-	if args.trigger_visualization:
-		trigger_visualization(logger, args, train_data, test_data)
-		return
 
 	# build vfl models
 	if args.dataset == 'CIFAR10':
@@ -263,15 +265,15 @@ def main(args):
 
 
 if __name__ == '__main__':
-	currentDateAndTime = datetime.now()
+	currentDateAndTime = datetime.now().strftime('%Y%m%d_%H%M%S')
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument('--data_dir', default='/data/data_raw/', help='data directory')
+	parser.add_argument('--data_dir', default='./data/', help='data directory')
 	parser.add_argument('--dataset', default='NUSWIDE', help='name of dataset')
 	parser.add_argument('--device', default=0, type=int, help='GPU number')
 	parser.add_argument(
 		'--results_dir',
-		default='/data/data_raw/vfl_baseline/logs/' + str(currentDateAndTime),
+		default='./data/logs/' + str(currentDateAndTime),
 		help='the result directory',
 	)
 	parser.add_argument('--seed', default=100, type=int, help='the seed')
@@ -286,15 +288,11 @@ if __name__ == '__main__':
 	parser.add_argument(
 		'--print_steps', default=10, type=int, help='the print step of training logging'
 	)
-	parser.add_argument('--early_stop', default=20, type=int, help='the early stop epoch')
 	parser.add_argument(
 		'--attack', default=None, help='attack method'
 	)  # None: baseline, lba: label-based attack, nla: no-label attack
 	parser.add_argument('--target_label', default=3, type=int, help='the target label for backdoor')
 	parser.add_argument('--poison_rate', default=0.1, type=float, help='the rate of poison samples')
-	parser.add_argument(
-		'--trigger_visualization', default=False, type=bool, help='visualize the trigger'
-	)
 	parser.add_argument(
 		'--poison_dimensions', default=5, type=int, help='the dimensions to be poisoned'
 	)
@@ -313,9 +311,7 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 
-	args.results_dir = (
-		'/data/data_sw/vfl_baseline/logs/' + args.dataset + '/' + str(currentDateAndTime)
-	)
+	args.results_dir = './data/logs/' + args.dataset + '/' + str(currentDateAndTime)
 
 	# set seed
 	set_seed(args.seed)

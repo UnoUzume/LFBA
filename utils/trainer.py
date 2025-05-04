@@ -1,10 +1,12 @@
 import copy
-import time
+import os
 from random import sample
+
+import numpy as np
+import torch
 
 from attack.attack import attack_LFBA, get_near_index
 from dataset.utils import split_vfl
-from utils.utils import *
 
 
 class Trainer:
@@ -45,11 +47,8 @@ class Trainer:
 				param_group['lr'] = lr
 
 	def train(self):
-		start_time_train = time.time()
 		if self.args.attack:
 			self.logger.info(f'=> Start Training with {self.args.attack}...')
-			if self.args.pretrain_stage:
-				self.logger.info('=> Pretrain...')
 		else:
 			self.logger.info('=> Start Training Baseline...')
 		epoch_loss_list = []
@@ -60,9 +59,7 @@ class Trainer:
 		best_epoch = 0
 		asr_for_best_epoch = 0
 		target_for_best_epoch = 0
-		no_change = 0
-		total_time_GPC = 0
-		total_time_HS = 0
+
 		self.select_his = torch.zeros(self.train_loader.dataset.data.shape[0])
 		if self.checkpoint:
 			best_acc = self.checkpoint['best_acc']
@@ -87,14 +84,11 @@ class Trainer:
 
 				# select sample set
 				if ep == 1:
-					start_time = time.time()
 					self.anchor_idx_t = torch.nonzero(self.train_indexes == self.args.anchor_idx).squeeze()
 					self.indexes = get_near_index(
 						self.train_features[self.anchor_idx_t], self.train_features, self.num_poisons
 					)
-					end_time = time.time()
-					print(f'The poison set construction time: {end_time - start_time}')
-					total_time_GPC += end_time - start_time
+
 					self.poison_indexes = self.train_indexes[self.indexes]
 					self.consistent_rate = float(
 						(self.train_labels[self.indexes] == int(self.train_labels[self.anchor_idx_t])).sum()
@@ -108,13 +102,10 @@ class Trainer:
 				temp = np.array(range(len(self.train_indexes)))
 				self.indexes = temp[self.indexes]
 				self.l2_norm_features = torch.norm(self.train_features[self.indexes], p=2, dim=1)
-				start_time = time.time()
 				self.poison_features, self.select_indexes = self.l2_norm_features.topk(
 					self.num_select, dim=0, largest=True, sorted=True
 				)
-				end_time = time.time()
-				print(f'The hard-sample selection time: {end_time - start_time}')
-				total_time_HS += end_time - start_time
+
 				num_of_replace = int(len(self.poison_indexes) * self.args.select_rate)
 				replace_all_list = list(
 					set(self.train_indexes.numpy()).difference(set(torch.tensor(self.poison_indexes).numpy()))
@@ -185,9 +176,6 @@ class Trainer:
 					)
 					self.args.target_label = self.anchor_label
 					self.logger.info(f'Target label:{self.anchor_label}')
-
-			elif self.args.attack == 'rsa' or self.args.attack == 'lra' or self.args.attack is None:
-				pass
 
 			self.logger.info('=> Start Training for Injecting Backdoor...')
 
@@ -265,7 +253,6 @@ class Trainer:
 				poison_acc_for_best_epoch = test_poison_accuracy
 				asr_for_best_epoch = test_asr
 				target_for_best_epoch = test_target
-				no_change = 0
 				best_epoch = ep
 				# save model
 				self.logger.info('=> Save best model...')
@@ -283,21 +270,9 @@ class Trainer:
 				}
 				filename = os.path.join(self.args.results_dir, 'best_checkpoint.pth.tar')
 				torch.save(state, filename)
-			elif ep > self.args.pretrain_stage:
-				no_change += 1
 			self.logger.info(
-				f'=> End Epoch: {ep + 1}, early stop epochs: {no_change}, best epoch: {best_epoch + 1}, best trade off accuracy: {best_trade_off:.4f}, main task accuracy: {best_acc:.4f}, test target accuracy: {target_for_best_epoch:.4f}, test asr: {asr_for_best_epoch:.4f}'
+				f'=> End Epoch: {ep + 1}, best epoch: {best_epoch + 1}, best trade off accuracy: {best_trade_off:.4f}, main task accuracy: {best_acc:.4f}, test target accuracy: {target_for_best_epoch:.4f}, test asr: {asr_for_best_epoch:.4f}'
 			)
-			if no_change == self.args.early_stop:
-				end_time_train = time.time()
-				print(f'The total training time: {end_time_train - start_time_train}')
-				print(
-					f'The average training time of each epoch: {(end_time_train - start_time_train) / (ep + 1)}'
-				)
-				print(f'The poison set construction time: {total_time_GPC}')
-				print(f'The average hard-sample selection time: {total_time_HS / (ep + 1)}')
-				print(f'The total hard-sample selection time: {total_time_HS}')
-				return
 
 	def test(self, ep):
 		self.logger.info('=> Test ASR...')
