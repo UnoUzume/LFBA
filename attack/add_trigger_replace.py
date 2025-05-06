@@ -8,7 +8,6 @@ def add_trigger_to_data_replace(
 	logger,
 	replace_indexes_others,
 	replace_indexes_target,
-	train_indexes,
 	poison_indexes,
 	new_data,
 	trigger_dimensions,
@@ -24,7 +23,6 @@ def add_trigger_to_data_replace(
 			logger,
 			replace_indexes_others,
 			replace_indexes_target,
-			train_indexes,
 			poison_indexes,
 			new_data,
 			new_targets,
@@ -39,7 +37,6 @@ def add_trigger_to_data_replace(
 			logger,
 			replace_indexes_others,
 			replace_indexes_target,
-			train_indexes,
 			poison_indexes,
 			trigger_dimensions,
 			new_data,
@@ -49,13 +46,12 @@ def add_trigger_to_data_replace(
 			replace_label,
 		)
 		return new_data, new_targets
-	if args.dataset == 'PHISHING' or args.dataset == 'NUSWIDE':
+	if args.dataset in {'PHISHING', 'NUSWIDE'}:
 		new_data, new_targets = add_vector_replacement_trigger(
 			args,
 			logger,
 			replace_indexes_others,
 			replace_indexes_target,
-			train_indexes,
 			poison_indexes,
 			trigger_dimensions,
 			new_data,
@@ -65,6 +61,7 @@ def add_trigger_to_data_replace(
 			replace_label,
 		)
 		return new_data, new_targets
+	return None
 
 
 def add_triangle_pattern_trigger(
@@ -72,7 +69,6 @@ def add_triangle_pattern_trigger(
 	logger,
 	replace_indexes_others,
 	replace_indexes_target,
-	train_indexes,
 	poison_indexes,
 	new_data,
 	new_targets,
@@ -102,7 +98,6 @@ def add_feature_trigger(
 	logger,
 	replace_indexes_others,
 	replace_indexes_target,
-	train_indexes,
 	poison_indexes,
 	trigger_dimensions,
 	new_data,
@@ -128,7 +123,6 @@ def add_vector_replacement_trigger(
 	logger,
 	replace_indexes_others,
 	replace_indexes_target,
-	train_indexes,
 	poison_indexes,
 	trigger_dimensions,
 	new_data,

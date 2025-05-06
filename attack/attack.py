@@ -34,12 +34,9 @@ def attack_rsa(args, logger, data, trigger_dimensions, rate, mode):
 	return new_data
 
 
-def attack_LFBA(
+def attack_LFBA_all(
 	args,
 	logger,
-	replace_indexes_others,
-	replace_indexes_target,
-	train_indexes,
 	poison_indexes,
 	data,
 	target,
@@ -47,33 +44,46 @@ def attack_LFBA(
 	rate,
 	mode,
 ):
-	if args.poison_all:
-		new_data, _ = add_trigger_to_data(
-			args,
-			logger,
-			poison_indexes,
-			data,
-			trigger_dimensions,
-			target,
-			rate,
-			mode,
-			replace_label=False,
-		)
-	else:
-		new_data, _ = add_trigger_to_data_replace(
-			args,
-			logger,
-			replace_indexes_others,
-			replace_indexes_target,
-			train_indexes,
-			poison_indexes,
-			data,
-			trigger_dimensions,
-			target,
-			rate,
-			mode,
-			replace_label=False,
-		)
+	new_data, _ = add_trigger_to_data(
+		args,
+		logger,
+		poison_indexes,
+		data,
+		trigger_dimensions,
+		target,
+		rate,
+		mode,
+		replace_label=False,
+	)
+
+	return new_data
+
+
+def attack_LFBA(
+	args,
+	logger,
+	replace_indexes_others,
+	replace_indexes_target,
+	poison_indexes,
+	data,
+	target,
+	trigger_dimensions,
+	rate,
+	mode,
+):
+	new_data, _ = add_trigger_to_data_replace(
+		args,
+		logger,
+		replace_indexes_others,
+		replace_indexes_target,
+		poison_indexes,
+		data,
+		trigger_dimensions,
+		target,
+		rate,
+		mode,
+		replace_label=False,
+	)
 	return new_data
 
 

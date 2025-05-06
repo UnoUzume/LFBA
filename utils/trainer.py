@@ -1,11 +1,13 @@
 import copy
 import os
 from random import sample
+from typing import cast
 
 import numpy as np
 import torch
+import torch.linalg as la
 
-from attack.attack import attack_LFBA, get_near_index
+from attack.attack import attack_LFBA, attack_LFBA_all, get_near_index
 from dataset.utils import split_vfl
 
 
@@ -51,195 +53,150 @@ class Trainer:
 			self.logger.info(f'=> Start Training with {self.args.attack}...')
 		else:
 			self.logger.info('=> Start Training Baseline...')
+
 		epoch_loss_list = []
 		model_list = self.model_list
 		model_list = [model.train() for model in model_list]
-		best_acc = 0
-		best_trade_off = 0
-		best_epoch = 0
-		asr_for_best_epoch = 0
-		target_for_best_epoch = 0
 
-		self.select_his = torch.zeros(self.train_loader.dataset.data.shape[0])
+		best_epoch = 0
+		best_acc = 0
+		best_asr = 0
+		best_trade_off = 0
+		best_target = 0
+
 		if self.checkpoint:
 			best_acc = self.checkpoint['best_acc']
+
 		# train and update
 		for ep in range(self.args.start_epoch, self.args.epoch):
 			batch_loss_list = []
 			total = 0
 			correct = 0
 			if ep >= 1 and self.args.attack == 'LFBA':
-				self.train_features, self.train_labels, self.train_indexes = (
-					self.grad_vec_epoch,
-					self.target_epoch,
-					self.indexes_epoch,
-				)
-				self.train_features, self.train_labels, self.train_indexes = (
-					self.train_features.cpu(),
-					self.train_labels.cpu(),
-					self.train_indexes.cpu(),
-				)
-				self.num_poisons = int(self.args.poison_rate * len(self.train_loader.dataset.data))
-				self.num_select = int(self.num_poisons * self.args.select_rate)
+				tsTrFeats = cast('torch.Tensor', self.grad_vec_epoch.cpu())  #: tsTrainFeatures
+				tsTrLabels = self.target_epoch.cpu()
+				naAllIdxs = cast('torch.Tensor', self.indexes_epoch.cpu())
+				#: tsTrainShuffledIndexes 每个epoch都不同
+
+				nPoisons = int(self.args.poison_rate * len(self.train_loader.dataset.data))
+				nSelect = int(nPoisons * self.args.select_rate)
+
+				kwargs = {
+					'data': copy.deepcopy(self.train_loader.dataset.data_p),
+					'target': self.train_loader.dataset.targets,
+					'trigger_dimensions': self.trigger_dimensions,
+					'rate': self.args.poison_rate,
+					'mode': 'train',
+				}
 
 				# select sample set
 				if ep == 1:
-					self.anchor_idx_t = torch.nonzero(self.train_indexes == self.args.anchor_idx).squeeze()
-					self.indexes = get_near_index(
-						self.train_features[self.anchor_idx_t], self.train_features, self.num_poisons
-					)
+					iAncIdx = np.flatnonzero(naAllIdxs == self.args.anchor_idx).item()
+					npCursors = get_near_index(tsTrFeats[iAncIdx], tsTrFeats, nPoisons)
+					#: npCursors 索引列表的索引列表 idx of tsTrFeats
+					self.naPoiIdxs = naAllIdxs[npCursors]  #: poison_indexes
 
-					self.poison_indexes = self.train_indexes[self.indexes]
-					self.consistent_rate = float(
-						(self.train_labels[self.indexes] == int(self.train_labels[self.anchor_idx_t])).sum()
-						/ len(self.indexes)
-					)
+					iAncLabel = tsTrLabels[iAncIdx].item()
+					self.args.target_label = iAncLabel
 
-				# For replace poisoning
-				self.indexes = np.isin(
-					self.train_indexes.numpy(), torch.tensor(self.poison_indexes).numpy()
-				)
-				temp = np.array(range(len(self.train_indexes)))
-				self.indexes = temp[self.indexes]
-				self.l2_norm_features = torch.norm(self.train_features[self.indexes], p=2, dim=1)
-				self.poison_features, self.select_indexes = self.l2_norm_features.topk(
-					self.num_select, dim=0, largest=True, sorted=True
-				)
+					rConsistent: float = torch.eq(tsTrLabels[npCursors], iAncLabel).float().mean().item()
+					self.logger.info(f'consistent_rate: {rConsistent}...')
 
-				num_of_replace = int(len(self.poison_indexes) * self.args.select_rate)
+				num_of_replace = int(len(self.naPoiIdxs) * self.args.select_rate)
 				replace_all_list = list(
-					set(self.train_indexes.numpy()).difference(set(torch.tensor(self.poison_indexes).numpy()))
+					set(naAllIdxs.numpy()).difference(set(torch.tensor(self.naPoiIdxs).numpy()))
 				)
-				replace_indexes_others = sample(replace_all_list, num_of_replace)
-				random_indexes_target = sample(list(self.poison_indexes), num_of_replace)
-				selected_indexes_target = self.train_indexes[self.indexes[self.select_indexes]]
+				naReplaceIdxs = sample(replace_all_list, num_of_replace)
+				random_indexes_target = sample(list(self.naPoiIdxs), num_of_replace)
 
 				if self.args.poison_all:
 					if self.args.random_select:
-						self.poison_indexes_t = sample(list(self.poison_indexes), self.num_select)
-						self.indexes = np.isin(
-							self.train_indexes.numpy(), torch.tensor(self.poison_indexes_t).numpy()
-						)
-					self.poisoning_labels = np.array(self.train_labels)[self.indexes]
-					self.anchor_label = int(self.train_labels[self.train_indexes == self.args.anchor_idx])
-					self.args.target_label = self.anchor_label
-					self.logger.info(f'Target label:{self.anchor_label}')
-					self.clean_data_p = copy.deepcopy(self.train_loader.dataset.data_p)
-					if self.args.random_select:
-						self.train_loader.dataset.data = attack_LFBA(
-							self.args,
-							self.logger,
-							[],
-							[],
-							self.train_indexes,
-							self.poison_indexes_t,
-							self.clean_data_p,
-							self.train_loader.dataset.targets,
-							self.trigger_dimensions,
-							self.args.poison_rate,
-							'train',
-						)
+						pIdxs = sample(list(self.naPoiIdxs), nSelect)
 					else:
-						self.train_loader.dataset.data = attack_LFBA(
-							self.args,
-							self.logger,
-							[],
-							[],
-							self.train_indexes,
-							self.poison_indexes,
-							self.clean_data_p,
-							self.train_loader.dataset.targets,
-							self.trigger_dimensions,
-							self.args.poison_rate,
-							'train',
-						)
+						pIdxs = self.naPoiIdxs
+
+					self.train_loader.dataset.data = attack_LFBA_all(
+						self.args,
+						self.logger,
+						pIdxs,
+						**kwargs,
+					)
 				else:
 					if self.args.random_select:
 						replace_indexes_target = random_indexes_target
 					else:
-						replace_indexes_target = selected_indexes_target
-					self.poisoning_labels = np.array(self.train_labels)[self.indexes]
-					self.anchor_label = int(self.train_labels[self.train_indexes == self.args.anchor_idx])
-					self.clean_data_p = copy.deepcopy(self.train_loader.dataset.data_p)
+						npCursors = np.flatnonzero(np.isin(naAllIdxs, self.naPoiIdxs))
+						#: npCursors 索引列表的索引列表
+						tsCurFeats = tsTrFeats[npCursors]
+						tsCurFeatsN2 = cast('torch.Tensor', la.vector_norm(tsCurFeats, 2, 1))
+						_, tsSelIdxs = tsCurFeatsN2.topk(nSelect, 0)
+						replace_indexes_target = naAllIdxs[npCursors[tsSelIdxs]]
+
 					self.train_loader.dataset.data = attack_LFBA(
 						self.args,
 						self.logger,
-						replace_indexes_others,
+						naReplaceIdxs,
 						replace_indexes_target,
-						self.train_indexes,
-						self.poison_indexes,
-						self.clean_data_p,
-						self.train_loader.dataset.targets,
-						self.trigger_dimensions,
-						self.args.poison_rate,
-						'train',
+						self.naPoiIdxs,
+						**kwargs,
 					)
-					self.args.target_label = self.anchor_label
-					self.logger.info(f'Target label:{self.anchor_label}')
+				self.logger.info(f'Target label:{self.args.target_label}')
 
 			self.logger.info('=> Start Training for Injecting Backdoor...')
 
-			self.grad_vec_epoch = []
-			self.indexes_epoch = []
-			self.target_epoch = []
-			for step, (x_n, x_p, y, index) in enumerate(self.train_loader):
-				x = x_n
-				x = x.to(self.device).float()
-				y = y.to(self.device).long()
+			grad_vec_epoch = []
+			indexes_epoch = []
+			target_epoch = []
+			for step, (x0, _, y0, index) in enumerate(self.train_loader):
+				x = x0.to(self.device).float()
+				y = y0.to(self.device).long()
 				# split data for vfl
 				x_split_list = split_vfl(x, self.args)
-				local_output_list = []
-				global_input_list = []
-				# get the local model outputs
-				for i in range(self.args.client_num):
-					local_output_list.append(model_list[i + 1](x_split_list[i]))
-				# get the global model inputs, recording the gradients
-				for i in range(self.args.client_num):
-					global_input_t = local_output_list[i].detach().clone()
-					global_input_t.requires_grad_(True)
-					global_input_list.append(global_input_t)
-					local_output_list[i].requires_grad_(True)
-					local_output_list[i].retain_grad()
-					x_split_list[i].requires_grad_(True)
-					x_split_list[i].retain_grad()
 
-				global_output = model_list[0](local_output_list)
+				lbtmModels = model_list[1:]
+				lBtmOut: list[torch.Tensor] = [
+					model(x) for model, x in zip(lbtmModels, x_split_list, strict=True)
+				]
+				for t in lBtmOut:
+					t.retain_grad()
+				zTopOut = model_list[0](lBtmOut)
 
 				# global model backward
-				loss = self.criterion(global_output, y)
+				loss = self.criterion(zTopOut, y)
+
 				for opt in self.optimizer_list:
 					opt.zero_grad()
 
 				loss.backward()
 
 				if self.args.attack == 'LFBA':
-					self.grad_vec_epoch.append(
-						local_output_list[self.args.attack_client_num].grad.to(self.device)
-					)
-					self.indexes_epoch.append(index)
-					self.target_epoch.append(y)
+					grad_vec_epoch.append(lBtmOut[-1].grad.to(self.device))
+					indexes_epoch.append(index)
+					target_epoch.append(y)
 
 				for opt in self.optimizer_list:
 					opt.step()
+
 				batch_loss_list.append(loss.item())
 
 				# calculate the training accuracy
-				_, predicted = global_output.max(1)
+				_, predicted = zTopOut.max(1)
 				total += y.size(0)
 				correct += predicted.eq(y).sum().item()
 
 				# train_acc
 				train_acc = correct / total
-				current_loss = sum(batch_loss_list) / len(batch_loss_list)
+				loss = sum(batch_loss_list) / len(batch_loss_list)
 
 				if step % self.args.print_steps == 0:
 					self.logger.info(
-						f'Epoch: {ep + 1}, {step + 1}/{len(self.train_loader)}: train loss: {current_loss:.4f}, train main task accuracy: {train_acc:.4f}'
+						f'Epoch: {ep + 1}, {step + 1}/{len(self.train_loader)}: train loss: {loss:.4f}, '
+						f'train main task accuracy: {train_acc:.4f}'
 					)
 			if self.args.attack == 'LFBA':
-				self.grad_vec_epoch = torch.cat(self.grad_vec_epoch)
-				self.indexes_epoch = torch.cat(self.indexes_epoch)
-				self.target_epoch = torch.cat(self.target_epoch)
+				self.grad_vec_epoch = torch.cat(grad_vec_epoch)
+				self.indexes_epoch = torch.cat(indexes_epoch)
+				self.target_epoch = torch.cat(target_epoch)
 
 			epoch_loss = sum(batch_loss_list) / len(batch_loss_list)
 			epoch_loss_list.append(epoch_loss)
@@ -248,21 +205,23 @@ class Trainer:
 			test_trade_off = (test_acc + test_asr) / 2
 			if test_trade_off > best_trade_off:
 				# best accuracy
-				best_acc = test_acc
-				best_trade_off = test_trade_off
-				poison_acc_for_best_epoch = test_poison_accuracy
-				asr_for_best_epoch = test_asr
-				target_for_best_epoch = test_target
 				best_epoch = ep
+				best_acc = test_acc
+				best_asr = test_asr
+				best_trade_off = test_trade_off
+
+				poison_acc_for_best_epoch = test_poison_accuracy
+				best_target = test_target
+
 				# save model
 				self.logger.info('=> Save best model...')
 				state = {
 					'epoch': ep + 1,
 					'best_acc': best_acc,
+					'asr': best_asr,
 					'test_trade_off': test_trade_off,
-					'test_target': target_for_best_epoch,
+					'test_target': best_target,
 					'poison_acc': poison_acc_for_best_epoch,
-					'asr': asr_for_best_epoch,
 					'state_dict': [model_list[i].state_dict() for i in range(len(model_list))],
 					'optimizer': [
 						self.optimizer_list[i].state_dict() for i in range(len(self.optimizer_list))
@@ -271,7 +230,9 @@ class Trainer:
 				filename = os.path.join(self.args.results_dir, 'best_checkpoint.pth.tar')
 				torch.save(state, filename)
 			self.logger.info(
-				f'=> End Epoch: {ep + 1}, best epoch: {best_epoch + 1}, best trade off accuracy: {best_trade_off:.4f}, main task accuracy: {best_acc:.4f}, test target accuracy: {target_for_best_epoch:.4f}, test asr: {asr_for_best_epoch:.4f}'
+				f'=> End Epoch: {ep + 1}, best epoch: {best_epoch + 1}, '
+				f'best trade off accuracy: {best_trade_off:.4f}, main task accuracy: {best_acc:.4f}, '
+				f'test target accuracy: {best_target:.4f}, test asr: {best_asr:.4f}'
 			)
 
 	def test(self, ep):
@@ -284,32 +245,29 @@ class Trainer:
 		correct = 0
 		total_target = 0
 		correct_target = 0
-		for step, (x, x_p, y, index) in enumerate(self.test_loader):
-			x = x.to(self.device).float()
-			y = y.to(self.device).long()
+		for x0, _, y0, _ in self.test_loader:
+			x = x0.to(self.device).float()
+			y = y0.to(self.device).long()
 			# split data for vfl
 			x_split_list = split_vfl(x, self.args)
-			local_output_list = []
-			global_input_list = []
-			# get the local model outputs
-			for i in range(self.args.client_num):
-				local_output_list.append(model_list[i + 1](x_split_list[i]))
-			# get the global model inputs, recording the gradients
-			for i in range(self.args.client_num):
-				global_input_t = local_output_list[i].detach().clone()
-				global_input_t.requires_grad_(True)
-				global_input_list.append(global_input_t)
 
-			global_output = model_list[0](local_output_list)
+			lbtmModels = model_list[1:]
+			lBtmOut: list[torch.Tensor] = [
+				model(x) for model, x in zip(lbtmModels, x_split_list, strict=True)
+			]
+			for t in lBtmOut:
+				t.retain_grad()
+			zTopOut = model_list[0](lBtmOut)
 
 			# global model backward
-			loss = self.criterion(global_output, y)
+			loss = self.criterion(zTopOut, y)
 			batch_loss_list.append(loss.item())
 
 			# calculate the testing accuracy
-			_, predicted = global_output.max(1)
+			_, predicted = zTopOut.max(1)
 			total += y.size(0)
 			correct += predicted.eq(y).sum().item()
+
 			total_target += (y == self.args.target_label).float().sum()
 			correct_target += predicted.eq(y)[y == self.args.target_label].float().sum().item()
 
@@ -336,10 +294,10 @@ class Trainer:
 				global_input_t.requires_grad_(True)
 				global_input_list.append(global_input_t)
 
-			global_output = model_list[0](local_output_list)
+			zTopOut = model_list[0](local_output_list)
 
 			# calculate the poison accuracy
-			_, predicted = global_output.max(1)
+			_, predicted = zTopOut.max(1)
 			total_poison += y.size(0)
 			correct_poison += predicted.eq(y).sum().item()
 			# calculate the asr
