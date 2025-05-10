@@ -170,20 +170,6 @@ def main(args):
 			)
 		else:
 			logger.info(f"=> no checkpoint found at '{args.pretrained_checkpoint}'")
-	# load feature extractor
-	if args.feature_extractor:
-		if os.path.isfile(args.feature_extractor):
-			logger.info(f"=> loading checkpoint '{args.feature_extractor}'")
-			extractor_checkpoint = torch.load(args.feature_extractor, map_location=device)
-			for i in range(len(extractor_list)):
-				extractor_list[i].load_state_dict(extractor_checkpoint['state_dict'][i])
-			logger.info(
-				"=> loaded checkpoint '{}' (epoch {}, best accuracy: {:.4f})".format(
-					args.feature_extractor, extractor_checkpoint['epoch'], extractor_checkpoint['best_acc']
-				)
-			)
-		else:
-			logger.info(f"=> no checkpoint found at '{args.feature_extractor}'")
 
 	if args.dataset == 'CIFAR10':
 		trigger_dimensions = []
@@ -236,8 +222,6 @@ def main(args):
 	trainer = Trainer(
 		device,
 		model_list,
-		extractor_list,
-		extractor_list[args.attack_client_num + 1],
 		optimizer_list,
 		criterion,
 		train_loader,
@@ -301,7 +285,6 @@ if __name__ == '__main__':
 	)
 	parser.add_argument('--attack_client_num', default=1, type=int, help='the adversary client')
 	parser.add_argument('--num_clusters', default=10, type=int, help='the number of clusters')
-	parser.add_argument('--feature_extractor', default='', help='the feature extractor path')
 	parser.add_argument('--select_rate', default=1, type=float)
 	parser.add_argument('--random_select', action='store_true')
 	parser.add_argument('--select_replace', action='store_true')
